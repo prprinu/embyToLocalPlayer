@@ -78,8 +78,11 @@ def requests_urllib(host, params=None, _json=None, decode=False, timeout=5.0, he
     for try_times in range(1, retry + 1):
         try:
             response = urllib.request.urlopen(req, _json, timeout=timeout, context=ssl_context)
+            # Log response status and content
+            logger.log(f"Response Status: {response.status}")
+            
             if res_only:
-                return response
+                return response         
             break
         except socket.timeout:
             logger.error(f'urllib {try_times=} {host=}', silence=silence)
@@ -90,15 +93,21 @@ def requests_urllib(host, params=None, _json=None, decode=False, timeout=5.0, he
             if try_times == retry:
                 raise ConnectionError(f'{try_times=} {host=} \n{str(e)[:100]}') from None
     if decode:
-        return response.read().decode()
+        response_content = response.read().decode()
+        #logger.log(f"Response Content: {response_content}")
+        return response_content
     if get_json:
-        return json.loads(response.read().decode())
+        response_content = response.read().decode()
+        #logger.log(f"Response Content: {response_content}")
+        return json.loads(response_content)
     if save_path:
         folder = os.path.dirname(save_path)
         if not os.path.exists(folder):
             os.mkdir(folder)
         with open(save_path, 'wb') as f:
-            f.write(response.read())
+            response_content = response.read().decode()
+            #logger.log(f"Response Content: {response_content}")
+            f.write(response_content.encode())
         return save_path
 
 

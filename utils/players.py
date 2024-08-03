@@ -277,21 +277,46 @@ class PlayerManager:
         prefetch_data['stop_sec_dict'].clear()
 
     def update_playback_for_eps(self):
+        import re
+        def clean_title(title):
+            # 去掉'[10/12]'和'(有字幕)'这部分的内容
+            cleaned_title = re.sub(r'\[\d+/\d+\]', '', title)
+            cleaned_title = re.sub(r'\(有字幕\)', '', cleaned_title)
+            return cleaned_title.strip()
+        
         need_update_eps = []
         if not self.playlist_data:
             logger.error(f'skip update progress: playlist_data not found')
             return
+        latest_title = None  # Initialize latest_title to None
         for key, _stop_sec in self.playlist_time.items():
+            key = clean_title(key)
+
+            # Check if key contains ".mkv" or ".mp4"
+            if ".mkv" in key or ".mp4" in key:
+                latest_title = key
+            else:
+                if latest_title:
+                    key = latest_title
+
             ep = self.playlist_data.get(key)
             if not ep:
                 logger.error(f'skip update progress: {key=} {_stop_sec=} not in playlist_data')
+                # logger.error(f'skip update progress: {key=} {_stop_sec=} not in playlist_data: {self.playlist_data}')
                 continue
             if not _stop_sec:
                 continue
-            update_server_playback_progress(stop_sec=_stop_sec, data=ep)
+            # Update last_ep and last_stop_sec
+            last_ep = ep
+            last_stop_sec = _stop_sec
+            
+        # Only update the last record
+        if last_ep and last_stop_sec:
+            update_server_playback_progress(stop_sec=last_stop_sec, data=last_ep)
+            last_ep['_stop_sec'] = last_stop_sec
+            need_update_eps.append(last_ep)
+            logger.info(f"update progress: {latest_title} stop_sec={last_stop_sec}")
 
-            ep['_stop_sec'] = _stop_sec
-            need_update_eps.append(ep)
         for provider in 'trakt', 'bangumi':
             if configs.raw.get(provider, 'enable_host', fallback=''):
                 threading.Thread(target=sync_third_party_for_eps,
